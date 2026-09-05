@@ -79,6 +79,29 @@ body {
   border-radius: 4px;
 }
 
+/* ---- Selector de skin ---- */
+#skin-select {
+  background: #22223a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #cfcfe6;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+#skin-select:hover {
+  border-color: #7aa2f7;
+}
+
+#skin-select:focus {
+  outline: none;
+  border-color: #7aa2f7;
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;
