@@ -39,8 +39,40 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const pauseMenu = document.getElementById('pause-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const menuRestartBtn = document.getElementById('menu-restart-btn');
+const toggleControlsBtn = document.getElementById('toggle-controls-btn');
+const menuControlsList = document.getElementById('menu-controls-list');
+const startLevelInput = document.getElementById('start-level');
+const startLevelValue = document.getElementById('start-level-value');
+
+const START_LEVEL_KEY = 'tetris.startLevel';
+const RESUME_GUARD_MS = 200;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let resumeGuardUntil = 0;
+
+function clampStartLevel(v) {
+  v = Math.floor(Number(v));
+  if (!Number.isFinite(v)) return 1;
+  return Math.min(15, Math.max(1, v));
+}
+
+let startLevel = 1;
+try {
+  const stored = localStorage.getItem(START_LEVEL_KEY);
+  if (stored !== null) startLevel = clampStartLevel(stored);
+} catch (e) { /* localStorage no disponible */ }
+
+function setStartLevel(v) {
+  startLevel = clampStartLevel(v);
+  try {
+    localStorage.setItem(START_LEVEL_KEY, String(startLevel));
+  } catch (e) { /* localStorage no disponible */ }
+  startLevelInput.value = startLevel;
+  startLevelValue.textContent = startLevel;
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -106,7 +138,7 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
+    level = startLevel + Math.floor(lines / 10);
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
   }
@@ -226,18 +258,30 @@ function endGame() {
   overlay.classList.remove('hidden');
 }
 
+function openPauseMenu() {
+  if (gameOver || paused) return;
+  paused = true;
+  cancelAnimationFrame(animId);
+  menuControlsList.classList.add('hidden');
+  startLevelInput.value = startLevel;
+  startLevelValue.textContent = startLevel;
+  pauseMenu.classList.remove('hidden');
+}
+
+function resumeGame() {
+  if (!paused || gameOver) return;
+  paused = false;
+  pauseMenu.classList.add('hidden');
+  resumeGuardUntil = performance.now() + RESUME_GUARD_MS;
+  lastTime = performance.now();
+  dropAccum = 0;
+  loop(lastTime);
+}
+
+// Alterna la pausa: abre el menú; nunca reanuda por tecla (solo el botón "Reanudar").
 function togglePause() {
-  if (gameOver) return;
-  paused = !paused;
-  if (!paused) {
-    lastTime = performance.now();
-    loop(lastTime);
-  } else {
-    cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
-  }
+  if (gameOver || paused) return;
+  openPauseMenu();
 }
 
 function loop(ts) {
@@ -260,23 +304,27 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  resumeGuardUntil = 0;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseMenu.classList.add('hidden');
+  menuControlsList.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
+  if (performance.now() < resumeGuardUntil) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -300,5 +348,25 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+resumeBtn.addEventListener('click', resumeGame);
+
+menuRestartBtn.addEventListener('click', () => {
+  pauseMenu.classList.add('hidden');
+  init();
+});
+
+toggleControlsBtn.addEventListener('click', () => {
+  menuControlsList.classList.toggle('hidden');
+});
+
+startLevelInput.addEventListener('input', () => {
+  startLevelValue.textContent = clampStartLevel(startLevelInput.value);
+});
+startLevelInput.addEventListener('change', () => {
+  setStartLevel(startLevelInput.value);
+});
+
+setStartLevel(startLevel);
 
 init();
